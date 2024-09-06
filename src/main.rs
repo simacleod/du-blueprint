@@ -8,14 +8,17 @@ use parry3d_f64::math::{Isometry, Point, Vector};
 use parry3d_f64::shape::{TriMesh, TriMeshFlags};
 use squarion::{AggregateMetadata, Deserialize, VoxelCellData};
 use tobj::LoadOptions;
+use serde_json::Value;
 
 mod blueprint;
 mod squarion;
 mod svo;
 mod voxelization;
+mod import;
 
 use crate::blueprint::*;
 use crate::voxelization::*;
+use crate::import::JSONImporter;
 
 use clap::{Args, Parser, Subcommand};
 
@@ -60,6 +63,27 @@ enum Commands {
         #[command(flatten)]
         scale: ScaleInfo,
     },
+    // Generate a blueprint file from a JSON of voxels (produced by an external voxelizer)
+    GenerateFromJson {
+        /// Input JSON file name
+        input: PathBuf,
+
+        /// Output blueprint file name
+        output: PathBuf,
+
+        /// Core type (e.g., Core or CoreUnit)
+        #[arg(short, long, value_enum)]
+        r#type: CoreType,
+
+        /// Core size (e.g., Medium, Large)
+        #[arg(short, long, value_enum)]
+        size: CoreSize,
+
+        /// Voxel material ID
+        #[arg(short, long, default_value_t = 1971262921)]
+        material: u64,
+    },
+
     /// Parse a base64 voxel chunk and dump the result to stdout
     ParseVoxel {
         // Input base64
@@ -156,6 +180,47 @@ fn main() {
                 .write(bp.to_construct_json().to_string().as_bytes())
                 .unwrap();
         }
+        Commands::GenerateFromJson {
+            input,
+            output,
+            r#type,
+            size,
+            material,
+        } => {
+            // Load the JSON file
+            let json_data: Value = {
+                let file = std::fs::File::open(&input).expect("Failed to open input JSON file");
+                serde_json::from_reader(file).expect("Failed to parse JSON file")
+            };
+
+            // Derive the height from the CoreSize
+            let height = size.height();
+
+            // Initialize the JSONImporter
+            let mut json_importer = JSONImporter;
+
+            // Create the SVO using the JSONImporter
+            let svo = json_importer.process_json_and_create_svo(&json_data, height, material);
+
+            // Create the Blueprint using the generated SVO
+            let bp = Blueprint::new(
+                input
+                    .file_stem()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
+                CoreInfo::from(size, r#type),
+                material,
+                svo,
+            );
+
+            // Write the blueprint to the output file
+            std::fs::File::create(output)
+                .unwrap()
+                .write_all(bp.to_construct_json().to_string().as_bytes())
+                .expect("Failed to write blueprint to output file");
+        },
         Commands::ParseVoxel { b64 } => {
             let bytes = base64::prelude::BASE64_STANDARD.decode(b64).unwrap();
             let voxel = VoxelCellData::decompress(&bytes);

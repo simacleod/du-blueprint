@@ -535,6 +535,14 @@ impl RangeZYX {
         [0, 1, 1],
     ];
 
+    // Method to check if a point is within the range
+    pub fn contains_point(&self, point: Point<i32>) -> bool {
+        let end = self.origin + self.size;
+        point.coords.iter().zip(self.origin.coords.iter()).all(|(&p, &o)| p >= o) &&
+        point.coords.iter().zip(end.coords.iter()).all(|(&p, &e)| p < e)
+    }
+
+
     pub fn with_extent(origin: Point<i32>, extent: i32) -> RangeZYX {
         assert!(extent >= 0);
         RangeZYX::with_extents(origin, Vector::repeat(extent))
@@ -682,6 +690,7 @@ impl VertexGrid {
         if total_materials == 0 {
             return HeavyMetadata::default();
         }
+        println!("creating bounding box: {:?}, {:?}, materials {:?}", min_pos,max_pos, total_materials);
         let bounding_box = RangeZYX {
             origin: min_pos,
             size: max_pos - min_pos,
@@ -830,7 +839,7 @@ impl Deserialize for MaterialMapper {
 
 #[derive(Debug)]
 pub struct VoxelCellData {
-    grid: VertexGrid,
+    pub grid: VertexGrid,
     mapping: MaterialMapper,
     is_diff: u8,
 }
@@ -856,6 +865,15 @@ impl VoxelCellData {
         light_current.hash_decor = Some(0);
         light_current.entropy = Some(0.01); // TODO, calc this
         AggregateMetadata::new(light_current, heavy_current)
+    }
+
+    pub fn set_material_at_position(&mut self, pos: Point<i32>, material: u8) {
+        self.grid.set_materials(&RangeZYX::with_extent(pos, 1), VertexMaterial::new(material));
+    }
+
+    // Method to set the vertex offset at a specific position in the grid
+    pub fn set_vertex_offset_at_position(&mut self, pos: Point<i32>, offset: [u8; 3]) {
+        self.grid.set_voxel(&pos, VertexVoxel::new(offset));
     }
 }
 

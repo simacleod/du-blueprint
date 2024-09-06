@@ -5,7 +5,7 @@ use parry3d_f64::math::Point;
 use crate::squarion::*;
 
 #[derive(Debug)]
-enum SvoNode<T> {
+pub enum SvoNode<T> {
     Leaf(T),
     Internal(T, Box<[SvoNode<T>; 8]>),
 }
@@ -30,7 +30,7 @@ impl<T> SvoNode<T> {
         }
     }
 
-    fn cata<F, R>(&self, range: &RangeZYX, func: &mut F) -> R
+    pub fn cata<F, R>(&self, range: &RangeZYX, func: &mut F) -> R
     where
         F: FnMut(&RangeZYX, &T, Option<[R; 8]>) -> R,
     {
@@ -63,10 +63,11 @@ impl<T> SvoNode<T> {
             }
         }
     }
+
 }
 
 pub struct Svo<T> {
-    root: SvoNode<T>,
+    pub root: SvoNode<T>,
     pub range: RangeZYX,
 }
 
@@ -102,4 +103,5 @@ impl<T> Svo<T> {
             range: self.range,
         }
     }
+
 }
