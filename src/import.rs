@@ -6,91 +6,81 @@ use serde_json::{Value};
 pub struct JSONImporter;
 
 impl JSONImporter {
-fn set_at_all_lods<F>(
-    &mut self,
-    svo: &mut Svo<Option<VoxelCellData>>,  // mutable reference to Svo
-    global_position: Point<i32>,
-    current_depth: usize,  // Current depth in the SVO
-    scale_factor: i32,     // Scale factor for current depth
-    set_fn: F,
-) where
-    F: Fn(&mut VoxelCellData, Point<i32>, i32),  // Closure to modify VoxelCellData with scale factor
-{
-    println!("___");
-    fn traverse_svo<F>(
-        node: &mut SvoNode<Option<VoxelCellData>>,  
-        range: &RangeZYX,  // The range of this node
-        global_position: Point<i32>,  // The global position to modify
-        current_depth: usize,  // The current depth in the SVO
-        scale_factor: i32,  // Scale factor for current depth
-        set_fn: &F,
+    fn set_at_all_lods<F>(
+        &mut self,
+        svo: &mut Svo<Option<VoxelCellData>>,  // mutable reference to Svo
+        global_position: Point<i32>,
+        current_depth: usize,  // Current depth in the SVO
+        scale_factor: i32,     // Scale factor for current depth
+        set_fn: F,
     ) where
-        F: Fn(&mut VoxelCellData, Point<i32>, i32),
+        F: Fn(&mut VoxelCellData, Point<i32>, i32),  // Closure to modify VoxelCellData with scale factor
     {
-        //println!("Traversing SVO: depth = {}, range origin = {:?}, size = {:?}", current_depth, range.origin, range.size);
-
-        // Adjust the size with padding using Vector instead of Point
-        let padded_range = RangeZYX {
-            origin: (range.origin - Point::new(1, 1, 1)).into(), // Shift origin back by 1 unit in all directions
-            size: range.size + Vector::new(2, 2, 2), // Add padding to size using Vector
-        };
-
-        if !padded_range.contains_point(global_position) {
-            //println!("Global position {:?} is outside padded range at depth {}", global_position, current_depth);
-            return;
-        }
-
-        let within_lod = global_position
-            .coords
-            .iter()
-            .all(|&coord| coord % scale_factor == 0);
-
-        if within_lod {
-            match node {
-                SvoNode::Leaf(Some(cell_data)) => {
-                    //println!("Setting data in leaf node at depth {} with scale factor {}", current_depth, scale_factor);
-                    println!("Setting material at position {:?}", global_position); 
-                    set_fn(cell_data, global_position, scale_factor);
-                }
-                SvoNode::Internal(Some(cell_data), _) => {
-                    //println!("Setting data in internal node at depth {} with scale factor {}", current_depth, scale_factor);
-                    set_fn(cell_data, global_position, scale_factor);
-                }
-                _ => {
-                    //println!("No data available to set at depth {}", current_depth);
+        fn traverse_svo<F>(
+            node: &mut SvoNode<Option<VoxelCellData>>,  
+            range: &RangeZYX,  // The range of this node
+            global_position: Point<i32>,  // The global position to modify
+            current_depth: usize,  // The current depth in the SVO
+            scale_factor: i32,  // Scale factor for current depth
+            set_fn: &F,
+        ) where
+            F: Fn(&mut VoxelCellData, Point<i32>, i32),
+        {
+            // Use scale_factor to adjust the padding
+            let padding = scale_factor; // Padding equals the current scale factor
+            let padded_range = RangeZYX {
+                origin: (range.origin - Point::new(padding, padding, padding)).into(), // Adjust origin by scale factor
+                size: range.size + Vector::new(2 * padding, 2 * padding, 2 * padding), // Add scaled padding to size
+            };
+    
+            // Check if the global position is inside the padded range
+            if !padded_range.contains_point(global_position) {
+                return;
+            }
+    
+            let within_lod = global_position
+                .coords
+                .iter()
+                .all(|&coord| coord % scale_factor == 0);
+    
+            if within_lod {
+                match node {
+                    SvoNode::Leaf(Some(cell_data)) => {
+                        set_fn(cell_data, global_position, scale_factor);
+                    }
+                    SvoNode::Internal(Some(cell_data), _) => {
+                        set_fn(cell_data, global_position, scale_factor);
+                    }
+                    _ => {}
                 }
             }
-        } else {
-            //println!("Global position {:?} does not align with LOD at depth {}", global_position, current_depth);
-        }
-
-        // Recursively traverse children if it's an internal node
-        if let SvoNode::Internal(_, children) = node {
-            let next_scale_factor = scale_factor / 2;  // Reduce scale factor at each LOD level
-            let octants = range.split_at_center();
-            for (i, child_range) in octants.iter().enumerate() {
-                //println!("Traversing child {} at depth {}, range origin = {:?}, size = {:?}", i, current_depth + 1, child_range.origin, child_range.size);
-                traverse_svo(
-                    &mut children[i],
-                    child_range,
-                    global_position,
-                    current_depth + 1,
-                    next_scale_factor,
-                    set_fn,
-                );
+    
+            // Recursively traverse children if it's an internal node
+            if let SvoNode::Internal(_, children) = node {
+                let next_scale_factor = scale_factor / 2;  // Reduce scale factor at each LOD level
+                let octants = range.split_at_center();
+                for (i, child_range) in octants.iter().enumerate() {
+                    traverse_svo(
+                        &mut children[i],
+                        child_range,
+                        global_position,
+                        current_depth + 1,
+                        next_scale_factor,
+                        set_fn,
+                    );
+                }
             }
         }
+    
+        traverse_svo(
+            &mut svo.root,
+            &svo.range,
+            global_position,
+            current_depth,
+            scale_factor,
+            &set_fn,
+        );
     }
-
-    traverse_svo(
-        &mut svo.root,
-        &svo.range,
-        global_position,
-        current_depth,
-        scale_factor,
-        &set_fn,
-    );
-}
 
     pub fn set_material_at_all_lods(
         &mut self,
