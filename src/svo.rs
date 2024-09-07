@@ -105,3 +105,56 @@ impl<T> Svo<T> {
     }
 
 }
+
+impl SvoNode<Option<VoxelCellData>> {
+    /// Checks if the current SvoNode is empty.
+    pub fn is_empty(&self) -> bool {
+        match self {
+            SvoNode::Leaf(None) => true, // A leaf with no data is considered empty
+            SvoNode::Internal(None, children) => {
+                children.iter().all(|child| child.is_empty()) // Internal node is empty if all children are empty
+            }
+            _ => false, // Any node with data is not empty
+        }
+    }
+
+    /// Recursively prunes empty grids in the SvoNode
+    fn prune_empty_grids(self) -> SvoNode<Option<VoxelCellData>> {
+        match self {
+            // If it's a leaf with no data, return None (pruned)
+            SvoNode::Leaf(Some(cell_data)) => {
+                if cell_data.grid.is_empty() {
+                    SvoNode::Leaf(None) // Prune if the grid is empty
+                } else {
+                    SvoNode::Leaf(Some(cell_data)) // Keep the data if grid is not empty
+                }
+            }
+
+            // Internal node with children, recursively prune children
+            SvoNode::Internal(Some(cell_data), children) => {
+                let pruned_children: Box<[SvoNode<Option<VoxelCellData>>; 8]> =
+                    Box::new(children.map(|child| child.prune_empty_grids()));
+
+                // If all children are pruned, return None
+                if pruned_children.iter().all(|child| child.is_empty()) {
+                    SvoNode::Leaf(None) // Prune internal node if all children are empty
+                } else {
+                    SvoNode::Internal(Some(cell_data), pruned_children) // Keep node if at least one child is not empty
+                }
+            }
+
+            // If the node is already None, just return it
+            SvoNode::Leaf(None) | SvoNode::Internal(None, _) => SvoNode::Leaf(None),
+        }
+    }
+}
+
+impl Svo<Option<VoxelCellData>> {
+    /// Prunes empty grids from the root node downwards.
+    pub fn prune_empty_grids(self) -> Svo<Option<VoxelCellData>> {
+        Svo {
+            root: self.root.prune_empty_grids(),
+            range: self.range, // Keep the range unchanged
+        }
+    }
+}

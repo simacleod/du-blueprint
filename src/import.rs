@@ -2,6 +2,7 @@ use crate::squarion::*;
 use crate::svo::*;
 use parry3d_f64::math::{Point, Vector};
 use serde_json::{Value};
+use indicatif::{ProgressBar, ProgressStyle}; // Import the progress bar module
 
 pub struct JSONImporter;
 
@@ -141,18 +142,37 @@ impl JSONImporter {
         let positions = json_data["positions"].as_array().expect("Invalid 'positions' array");
         let vertices = json_data["vertices"].as_array().expect("Invalid 'vertices' array");
     
-        //println!("Processing positions from JSON...");
+        // Create a progress bar for positions
+        let position_bar = ProgressBar::new(positions.len() as u64);
+        position_bar.set_style(
+            ProgressStyle::default_bar()
+                .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len} ({eta})")
+                .expect("Failed to set progress bar template")  // Handle the Result from template
+                .progress_chars("#>-"),
+        );
+    
+        // Iterate over positions with progress bar
         for pos in positions {
             let global_position = Point::new(
                 (pos[0].as_f64().unwrap() + 0.5).round() as i32,
                 (pos[1].as_f64().unwrap() + 0.5).round() as i32,
                 (pos[2].as_f64().unwrap() + 0.5).round() as i32,
             );
-            //println!("Processing position: {:?}", global_position);
             self.set_material_at_all_lods(&mut svo, global_position, 2, height);
+            position_bar.inc(1); // Increment the progress bar
         }
+        position_bar.finish_with_message("Positions processed");
     
-        //println!("Processing vertices from JSON...");
+        // Create a progress bar for vertices
+        let vertex_bar = ProgressBar::new(vertices.len() as u64);
+        vertex_bar.set_style(
+            ProgressStyle::default_bar()
+                .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.magenta/red}] {pos}/{len} ({eta})")
+                .expect("Failed to set progress bar template")  // Handle the Result from template
+                .progress_chars("#>-"),
+        );
+    
+        // Iterate over vertices with progress bar
         for vert in vertices {
             let x = vert[0].as_f64().unwrap_or_else(|| vert[0].as_i64().unwrap() as f64);
             let y = vert[1].as_f64().unwrap_or_else(|| vert[1].as_i64().unwrap() as f64);
@@ -164,9 +184,10 @@ impl JSONImporter {
             let offset_z = vert[5].as_f64().unwrap_or_else(|| vert[5].as_i64().unwrap() as f64) as u8;
             let offset = Point::new(offset_x, offset_y, offset_z);
     
-            //println!("Processing vertex: Position = {:?}, Offset = {:?}", global_position, offset);
             self.set_vertex_offset_at_all_lods(&mut svo, global_position, offset, height);
+            vertex_bar.inc(1); // Increment the progress bar
         }
+        vertex_bar.finish_with_message("Vertices processed");
     
         // After processing, divide the root range by 32
         let scale_factor = 32;
@@ -179,12 +200,8 @@ impl JSONImporter {
             ),
         };
     
-        //println!(
-        //    "Root range after scaling down by {}: origin = {:?}, size = {:?}",
-        //    scale_factor, svo.range.origin, svo.range.size
-        //);
-    
-        svo
+        let pruned_svo = svo.prune_empty_grids();
+        pruned_svo
     }
 
     pub fn create_empty_lods(
