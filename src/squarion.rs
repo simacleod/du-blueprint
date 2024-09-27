@@ -673,38 +673,48 @@ impl VertexGrid {
             .for_each_index_range(subrange, |r| self.sparse_vertices.insert(r, voxel))
     }
 
-    pub fn calculate_metadata(&self, material_id : u64) -> HeavyMetadata {
+    pub fn calculate_metadata(&self, material_mapper: &MaterialMapper) -> HeavyMetadata {
         let mut min_pos = Point::new(i32::MAX, i32::MAX, i32::MAX);
         let mut max_pos = Point::new(i32::MIN, i32::MIN, i32::MIN);
-        let mut total_materials = 0;
+        let mut material_counts = BTreeMap::<MaterialId, u64>::new();
+
         self.range.for_each_index_range(&self.inner_range, |r| {
-            for (subrange, _) in self.sparse_materials.overlapping(&r) {
+            for (subrange, vertex_material) in self.sparse_materials.overlapping(&r) {
                 for i in range_intersection(subrange, &r) {
                     let pos = self.range.position_from_index(i);
                     min_pos = min_pos.inf(&pos);
                     max_pos = max_pos.sup(&pos);
-                    total_materials += 1;
+
+                    let mat_u8 = vertex_material.material;
+                    // Map mat_u8 to MaterialId via material_mapper
+                    if let Some(material_id) = material_mapper.reverse_mapping.get(&mat_u8) {
+                        *material_counts.entry(material_id.clone()).or_insert(0) += 1;
+                    }
                 }
             }
         });
-        if total_materials == 0 {
+
+        if material_counts.is_empty() {
             return HeavyMetadata::default();
         }
-        println!("creating bounding box: {:?}, {:?}, materials {:?}", min_pos,max_pos, total_materials);
+
+        println!(
+            "Creating bounding box: {:?}, {:?}, materials {:?}",
+            min_pos, max_pos, material_counts
+        );
+
         let bounding_box = RangeZYX {
             origin: min_pos,
             size: max_pos - min_pos,
         };
-        let mat_count = FixedPoint::from_f64(total_materials as f64 / 64.0);
+
         let mut material_stats = BTreeMap::new();
-        material_stats.insert(
-            MaterialId {
-                id: material_id,
-                short_name: "Material".into(),
-            },
-            mat_count,
-        );
-        // We don't actually need to calculate inertia, since the game will do that.
+        for (material_id, count) in material_counts {
+            let mat_count = FixedPoint::from_f64(count as f64 / 64.0);
+            material_stats.insert(material_id, mat_count);
+        }
+
+        // We don't need to calculate inertia since the game will do that.
         HeavyMetadata {
             bounding_box: Some(bounding_box),
             material_stats: Some(material_stats),
@@ -807,7 +817,7 @@ impl Deserialize for MaterialId {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct MaterialMapper {
     mapping: BTreeMap<MaterialId, u8>,
     reverse_mapping: BTreeMap<u8, MaterialId>,
@@ -856,14 +866,14 @@ impl VoxelCellData {
         }
     }
 
-    pub fn calculate_metadata(&self, hash: i64, material : u64) -> AggregateMetadata {
+    pub fn calculate_metadata(&self, hash: i64) -> AggregateMetadata {
         let mut light_current = LightMetadata::default();
-        let heavy_current = self.grid.calculate_metadata(material);
+        let heavy_current = self.grid.calculate_metadata(&self.mapping);
         light_current.vox = Some(heavy_current.material_stats.is_some());
         light_current.r#mod = Some(true);
         light_current.hash_voxel = Some(hash);
         light_current.hash_decor = Some(0);
-        light_current.entropy = Some(0.01); // TODO, calc this
+        light_current.entropy = Some(0.01); // TODO: Calculate this properly
         AggregateMetadata::new(light_current, heavy_current)
     }
 

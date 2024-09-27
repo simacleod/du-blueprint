@@ -47,7 +47,6 @@ impl VoxelData {
 
 fn make_voxel_data(
     data: &Svo<Option<VoxelCellData>>,
-    material: u64,
 ) -> (Vec<VoxelData>, Option<RangeZYX>) {
     let mut result = Vec::new();
     let meta = data.cata(|range, v, cs| match v {
@@ -58,7 +57,7 @@ fn make_voxel_data(
 
             let meta = match cs {
                 Some(cs) => AggregateMetadata::combine(voxel_hash, &cs),
-                None => voxels.calculate_metadata(voxel_hash, material),
+                None => voxels.calculate_metadata(voxel_hash),
             };
             let meta_compressed = meta.compress().unwrap();
             let meta_hash = hash(&meta_compressed);
@@ -212,7 +211,7 @@ impl Blueprint {
     }
 
     pub fn to_construct_json(&self) -> serde_json::Value {
-        let (voxel_data, bb) = make_voxel_data(&self.voxel_data, self.fill_material);
+        let (voxel_data, bb) = make_voxel_data(&self.voxel_data);
         if bb.is_none() {
             panic!("Construct is empty in core region.");
         }

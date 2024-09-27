@@ -200,7 +200,7 @@ fn main() {
             let mut json_importer = JSONImporter;
 
             // Create the SVO using the JSONImporter
-            let svo = json_importer.process_json_and_create_svo(&json_data, height, material);
+            let svo = json_importer.process_json_and_create_svo(&json_data, height);
 
             // Create the Blueprint using the generated SVO
             let bp = Blueprint::new(
