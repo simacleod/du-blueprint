@@ -1,8 +1,8 @@
 use crate::squarion::*;
 use crate::svo::*;
-use parry3d_f64::math::{Point, Vector};
-use serde_json::{Value};
 use indicatif::{ProgressBar, ProgressStyle};
+use parry3d_f64::math::{Point, Vector};
+use serde_json::Value;
 use std::collections::HashMap;
 
 pub struct JSONImporter;
@@ -90,22 +90,25 @@ impl JSONImporter {
     ) {
         let initial_scale_factor = 1 << (height - 3);
 
-        self.set_at_all_lods(svo, global_position, 0, initial_scale_factor, |cell_data, pos, scale| {
-            cell_data.set_material_at_position(pos, material);
+        self.set_at_all_lods(
+            svo,
+            global_position,
+            0,
+            initial_scale_factor,
+            |cell_data, pos, scale| {
+                cell_data.set_material_at_position(pos, material);
 
-            for dx in 0..=1 {
-                for dy in 0..=1 {
-                    for dz in 0..=1 {
-                        let corner_position = Point::new(
-                            pos.x - dx,
-                            pos.y - dy,
-                            pos.z - dz,
-                        );
-                        cell_data.set_vertex_offset_at_position(corner_position, [126, 126, 126]);
+                for dx in 0..=1 {
+                    for dy in 0..=1 {
+                        for dz in 0..=1 {
+                            let corner_position = Point::new(pos.x - dx, pos.y - dy, pos.z - dz);
+                            cell_data
+                                .set_vertex_offset_at_position(corner_position, [126, 126, 126]);
+                        }
                     }
                 }
-            }
-        });
+            },
+        );
     }
 
     pub fn set_vertex_offset_at_all_lods(
@@ -117,9 +120,15 @@ impl JSONImporter {
     ) {
         let initial_scale_factor = 1 << (height - 3);
 
-        self.set_at_all_lods(svo, global_position, 0, initial_scale_factor, |cell_data, pos, scale| {
-            cell_data.set_vertex_offset_at_position(pos, offset.into());
-        });
+        self.set_at_all_lods(
+            svo,
+            global_position,
+            0,
+            initial_scale_factor,
+            |cell_data, pos, scale| {
+                cell_data.set_vertex_offset_at_position(pos, offset.into());
+            },
+        );
     }
 
     pub fn process_json_and_create_svo(
@@ -130,7 +139,9 @@ impl JSONImporter {
         let origin = Point::new(0, 0, 0);
 
         // Extract materials mapping
-        let materials_json = json_data["materials"].as_object().expect("Invalid 'materials' mapping");
+        let materials_json = json_data["materials"]
+            .as_object()
+            .expect("Invalid 'materials' mapping");
 
         // Collect material IDs
         let material_ids: Vec<u64> = materials_json
@@ -157,7 +168,7 @@ impl JSONImporter {
         let mut material_index = 2;
 
         for material_id in &material_ids {
-            let short_name = format!("Mat{:05}", material_index); 
+            let short_name = format!("Mat{:05}", material_index);
             material_mapper.insert(
                 material_index,
                 MaterialId {
@@ -176,7 +187,9 @@ impl JSONImporter {
         for (material_id_str, positions_json) in materials_json.iter() {
             let material_id = material_id_str.parse::<u64>().expect("Invalid material ID");
             let positions = positions_json.as_array().expect("Invalid positions array");
-            let material_index = *material_id_to_index.get(&material_id).expect("Material ID not found in mapping");
+            let material_index = *material_id_to_index
+                .get(&material_id)
+                .expect("Material ID not found in mapping");
 
             // Create a progress bar for positions
             let position_bar = ProgressBar::new(positions.len() as u64);
@@ -197,11 +210,14 @@ impl JSONImporter {
                 self.set_material_at_all_lods(&mut svo, global_position, material_index, height);
                 position_bar.inc(1);
             }
-            position_bar.finish_with_message(format!("Positions for material {} processed", material_id));
+            position_bar
+                .finish_with_message(format!("Positions for material {} processed", material_id));
         }
 
         // Process vertices
-        let vertices = json_data["vertices"].as_array().expect("Invalid 'vertices' array");
+        let vertices = json_data["vertices"]
+            .as_array()
+            .expect("Invalid 'vertices' array");
 
         // Create a progress bar for vertices
         let vertex_bar = ProgressBar::new(vertices.len() as u64);
@@ -214,14 +230,29 @@ impl JSONImporter {
 
         // Iterate over vertices with progress bar
         for vert in vertices {
-            let x = vert[0].as_f64().unwrap_or_else(|| vert[0].as_i64().unwrap() as f64);
-            let y = vert[1].as_f64().unwrap_or_else(|| vert[1].as_i64().unwrap() as f64);
-            let z = vert[2].as_f64().unwrap_or_else(|| vert[2].as_i64().unwrap() as f64);
+            let x = vert[0]
+                .as_f64()
+                .unwrap_or_else(|| vert[0].as_i64().unwrap() as f64);
+            let y = vert[1]
+                .as_f64()
+                .unwrap_or_else(|| vert[1].as_i64().unwrap() as f64);
+            let z = vert[2]
+                .as_f64()
+                .unwrap_or_else(|| vert[2].as_i64().unwrap() as f64);
             let global_position = Point::new(x as i32, y as i32, z as i32);
 
-            let offset_x = vert[3].as_f64().unwrap_or_else(|| vert[3].as_i64().unwrap() as f64) as u8;
-            let offset_y = vert[4].as_f64().unwrap_or_else(|| vert[4].as_i64().unwrap() as f64) as u8;
-            let offset_z = vert[5].as_f64().unwrap_or_else(|| vert[5].as_i64().unwrap() as f64) as u8;
+            let offset_x = vert[3]
+                .as_f64()
+                .unwrap_or_else(|| vert[3].as_i64().unwrap() as f64)
+                as u8;
+            let offset_y = vert[4]
+                .as_f64()
+                .unwrap_or_else(|| vert[4].as_i64().unwrap() as f64)
+                as u8;
+            let offset_z = vert[5]
+                .as_f64()
+                .unwrap_or_else(|| vert[5].as_i64().unwrap() as f64)
+                as u8;
             let offset = Point::new(offset_x, offset_y, offset_z);
 
             self.set_vertex_offset_at_all_lods(&mut svo, global_position, offset, height);
@@ -252,7 +283,10 @@ impl JSONImporter {
     ) -> Svo<Option<VoxelCellData>> {
         let core_size = 128 * (1 << (height - 5));
         let leaf_size = 32;
-        println!("Creating empty LODs with core size: {} and leaf size: {}", core_size, leaf_size);
+        println!(
+            "Creating empty LODs with core size: {} and leaf size: {}",
+            core_size, leaf_size
+        );
 
         // Recursive function to build the SVO nodes
         fn build_svo_node(
@@ -262,7 +296,6 @@ impl JSONImporter {
             max_depth: usize,
             material_mapper: &MaterialMapper,
         ) -> SvoNode<Option<VoxelCellData>> {
-
             if range.size.x <= leaf_size || depth >= max_depth {
                 let outer_range = RangeZYX::with_extent(range.origin - Vector::repeat(1), 35);
                 let inner_range = RangeZYX::with_extent(range.origin, leaf_size);
@@ -297,7 +330,13 @@ impl JSONImporter {
 
         let root_range = RangeZYX::with_extent(origin, core_size as i32);
         let root_node = build_svo_node(&root_range, leaf_size, 0, height - 3, material_mapper);
-        println!("Created root node at depth 0 with range origin = {:?}, size = {:?}", root_range.origin, root_range.size);
-        Svo { root: root_node, range: root_range }
+        println!(
+            "Created root node at depth 0 with range origin = {:?}, size = {:?}",
+            root_range.origin, root_range.size
+        );
+        Svo {
+            root: root_node,
+            range: root_range,
+        }
     }
 }

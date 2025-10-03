@@ -1,0 +1,21 @@
+[package]
+name = "du-blueprint-renderer"
+version = "0.2.1"
+edition = "2021"
+
+[dependencies]
+tauri = { version = "2.8", features = ["wry"] }
+tauri-plugin-dialog = { version = "2.0" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+du-blueprint = { path = "../du-blueprint" }
+once_cell = { workspace = true }
+parking_lot = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+base64 = "0.22"
+bytemuck = { version = "1.15", features = ["extern_crate_alloc"] }
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }

@@ -1,32 +1,32 @@
+use std::env;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
+use std::process::Command;
 
 use base64::Engine;
+use du_blueprint::squarion::{AggregateMetadata, Deserialize, VoxelCellData};
 use parry3d_f64::bounding_volume::Aabb;
 use parry3d_f64::math::{Isometry, Point, Vector};
 use parry3d_f64::shape::{TriMesh, TriMeshFlags};
-use squarion::{AggregateMetadata, Deserialize, VoxelCellData};
-use tobj::LoadOptions;
 use serde_json::Value;
+use tobj::LoadOptions;
 
-mod blueprint;
-mod squarion;
-mod svo;
-mod voxelization;
-mod import;
-
-use crate::blueprint::*;
-use crate::voxelization::*;
-use crate::import::JSONImporter;
+use du_blueprint::blueprint::*;
+use du_blueprint::import::JSONImporter;
+use du_blueprint::voxelization::*;
 
 use clap::{Args, Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
+    /// Launch the offline renderer against a blueprint path
+    #[arg(long)]
+    render: Option<PathBuf>,
+
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Args)]
@@ -98,7 +98,20 @@ enum Commands {
 
 fn main() {
     let cli = Cli::parse();
-    match cli.command {
+    if let Some(render_path) = cli.render {
+        if let Err(err) = launch_renderer(render_path) {
+            eprintln!("{}", err);
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    let Some(command) = cli.command else {
+        eprintln!("No command provided. Use --help for usage information.");
+        std::process::exit(1);
+    };
+
+    match command {
         Commands::Generate {
             input,
             output,
@@ -110,7 +123,6 @@ fn main() {
             let (models, _) = tobj::load_obj(
                 &input,
                 &LoadOptions {
-                    merge_identical_points: true,
                     triangulate: true,
                     ..Default::default()
                 },
@@ -204,12 +216,7 @@ fn main() {
 
             // Create the Blueprint using the generated SVO
             let bp = Blueprint::new(
-                input
-                    .file_stem()
-                    .unwrap()
-                    .to_str()
-                    .unwrap()
-                    .to_string(),
+                input.file_stem().unwrap().to_str().unwrap().to_string(),
                 CoreInfo::from(size, r#type),
                 material,
                 svo,
@@ -220,7 +227,7 @@ fn main() {
                 .unwrap()
                 .write_all(bp.to_construct_json().to_string().as_bytes())
                 .expect("Failed to write blueprint to output file");
-        },
+        }
         Commands::ParseVoxel { b64 } => {
             let bytes = base64::prelude::BASE64_STANDARD.decode(b64).unwrap();
             let voxel = VoxelCellData::decompress(&bytes);
@@ -231,5 +238,40 @@ fn main() {
             let meta = AggregateMetadata::decompress(&bytes);
             println!("{:#?}", meta);
         }
+    }
+}
+
+fn launch_renderer(render_path: PathBuf) -> Result<(), String> {
+    if !render_path.exists() {
+        return Err(format!(
+            "Blueprint file '{}' does not exist",
+            render_path.display()
+        ));
+    }
+
+    let current_exe = env::current_exe()
+        .map_err(|err| format!("failed to resolve current executable: {}", err))?;
+    let renderer_exe = current_exe.with_file_name("du-blueprint-renderer");
+
+    let status = Command::new(&renderer_exe)
+        .arg("--path")
+        .arg(&render_path)
+        .status()
+        .map_err(|err| {
+            format!(
+                "failed to launch renderer binary '{}': {}",
+                renderer_exe.display(),
+                err
+            )
+        })?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "renderer process exited unsuccessfully for '{}': {}",
+            render_path.display(),
+            status
+        ))
     }
 }

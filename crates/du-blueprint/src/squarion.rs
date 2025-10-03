@@ -425,6 +425,10 @@ impl VertexVoxel {
     pub fn new(position: [u8; 3]) -> VertexVoxel {
         VertexVoxel { flags: 0, position }
     }
+
+    pub fn position(&self) -> [u8; 3] {
+        self.position
+    }
 }
 
 fn range_intersection(a: &Range<usize>, b: &Range<usize>) -> Range<usize> {
@@ -538,10 +542,17 @@ impl RangeZYX {
     // Method to check if a point is within the range
     pub fn contains_point(&self, point: Point<i32>) -> bool {
         let end = self.origin + self.size;
-        point.coords.iter().zip(self.origin.coords.iter()).all(|(&p, &o)| p >= o) &&
-        point.coords.iter().zip(end.coords.iter()).all(|(&p, &e)| p < e)
+        point
+            .coords
+            .iter()
+            .zip(self.origin.coords.iter())
+            .all(|(&p, &o)| p >= o)
+            && point
+                .coords
+                .iter()
+                .zip(end.coords.iter())
+                .all(|(&p, &e)| p < e)
     }
-
 
     pub fn with_extent(origin: Point<i32>, extent: i32) -> RangeZYX {
         assert!(extent >= 0);
@@ -659,6 +670,21 @@ impl VertexGrid {
         self.sparse_materials.is_empty()
     }
 
+    pub fn for_each_filled_cell<F>(&self, mut f: F)
+    where
+        F: FnMut(Point<i32>, &VertexMaterial),
+    {
+        self.range.for_each_index_range(&self.inner_range, |r| {
+            for (subrange, vertex_material) in self.sparse_materials.overlapping(&r) {
+                let overlap = range_intersection(subrange, &r);
+                for index in overlap.clone() {
+                    let position = self.range.position_from_index(index);
+                    f(position, vertex_material);
+                }
+            }
+        });
+    }
+
     pub fn set_materials(&mut self, subrange: &RangeZYX, material: VertexMaterial) {
         self.range
             .for_each_index_range(subrange, |r| self.sparse_materials.insert(r, material))
@@ -671,6 +697,14 @@ impl VertexGrid {
     pub fn set_voxels(&mut self, subrange: &RangeZYX, voxel: VertexVoxel) {
         self.range
             .for_each_index_range(subrange, |r| self.sparse_vertices.insert(r, voxel))
+    }
+
+    pub fn vertex_offset(&self, point: Point<i32>) -> [u8; 3] {
+        let index = self.range.index_from_position(point);
+        self.sparse_vertices
+            .get(&index)
+            .map(VertexVoxel::position)
+            .unwrap_or([126, 126, 126])
     }
 
     pub fn calculate_metadata(&self, material_mapper: &MaterialMapper) -> HeavyMetadata {
@@ -828,6 +862,10 @@ impl MaterialMapper {
         self.mapping.insert(material.clone(), id);
         self.reverse_mapping.insert(id, material);
     }
+
+    pub fn resolve(&self, id: u8) -> Option<&MaterialId> {
+        self.reverse_mapping.get(&id)
+    }
 }
 
 impl Serialize for MaterialMapper {
@@ -878,12 +916,19 @@ impl VoxelCellData {
     }
 
     pub fn set_material_at_position(&mut self, pos: Point<i32>, material: u8) {
-        self.grid.set_materials(&RangeZYX::with_extent(pos, 1), VertexMaterial::new(material));
+        self.grid.set_materials(
+            &RangeZYX::with_extent(pos, 1),
+            VertexMaterial::new(material),
+        );
     }
 
     // Method to set the vertex offset at a specific position in the grid
     pub fn set_vertex_offset_at_position(&mut self, pos: Point<i32>, offset: [u8; 3]) {
         self.grid.set_voxel(&pos, VertexVoxel::new(offset));
+    }
+
+    pub fn material_mapper(&self) -> &MaterialMapper {
+        &self.mapping
     }
 }
 

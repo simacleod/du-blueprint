@@ -344,14 +344,7 @@ impl Voxelizer {
                 let isometry = self.isometry.clone();
                 let mesh = self.mesh.clone();
                 let task = task::spawn(async move {
-                    voxelize_chunk(
-                        &isometry,
-                        &mesh,
-                        &aabb,
-                        &voxel_origin,
-                        material,
-                        is_lod,
-                    )
+                    voxelize_chunk(&isometry, &mesh, &aabb, &voxel_origin, material, is_lod)
                 });
                 if range.size.x == 1 {
                     SvoReturn::Leaf(Some(task))

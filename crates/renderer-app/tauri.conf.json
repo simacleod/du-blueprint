@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "identifier": "com.starforge.dublueprint",
+  "productName": "du-blueprint-renderer",
+  "version": "0.2.1",
+  "build": {
+    "frontendDist": "../../renderer-ui/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "DU Blueprint Renderer",
+        "width": 1280,
+        "height": 720
+      }
+    ]
+  }
+}

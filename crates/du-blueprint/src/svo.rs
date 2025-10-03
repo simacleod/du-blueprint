@@ -63,7 +63,6 @@ impl<T> SvoNode<T> {
             }
         }
     }
-
 }
 
 pub struct Svo<T> {
@@ -103,7 +102,6 @@ impl<T> Svo<T> {
             range: self.range,
         }
     }
-
 }
 
 impl SvoNode<Option<VoxelCellData>> {

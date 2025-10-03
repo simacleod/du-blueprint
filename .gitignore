@@ -3,3 +3,6 @@
 *.obj
 *.blueprint
 *.mtl
+Cargo.lock
+renderer-ui/node_modules/
+renderer-ui/dist/

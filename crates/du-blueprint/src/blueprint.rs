@@ -45,9 +45,7 @@ impl VoxelData {
     }
 }
 
-fn make_voxel_data(
-    data: &Svo<Option<VoxelCellData>>,
-) -> (Vec<VoxelData>, Option<RangeZYX>) {
+fn make_voxel_data(data: &Svo<Option<VoxelCellData>>) -> (Vec<VoxelData>, Option<RangeZYX>) {
     let mut result = Vec::new();
     let meta = data.cata(|range, v, cs| match v {
         Some(voxels) => {

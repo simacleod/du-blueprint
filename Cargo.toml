@@ -1,23 +1,24 @@
-[package]
-name = "du-blueprint"
-version = "0.2.1"
-edition = "2021"
+[workspace]
+members = [
+    "crates/du-blueprint",
+    "crates/renderer-app",
+]
+resolver = "2"
 
-[dependencies]
-lz4 = "1.23.1"
-base64 = "0.22.1"
-xxhash-rust = { version="0.8.12", features=["xxh64"] }
-# Temporary while changes are getting PR'd.
-parry3d-f64 = { git = "https://github.com/prharvey/parry.git", branch = "opt" }
-rangemap = "1.5.1"
+[workspace.package]
+edition = "2021"
+version = "0.2.1"
+authors = []
+license = ""
+
+[workspace.dependencies]
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-chrono = "0.4.38"
-tobj = { version = "4.0.2", features=["merging"] }
-ordered-float = "4.2.2"
-clap = { version = "4.5.16", features = ["derive"] }
-line_drawing = "1.0.0"
-async-std = "1.12.0"
-indicatif = "0.17"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+thiserror = "1.0"
+once_cell = "1.19"
+parking_lot = "0.12"
 
 [profile.release]
 debug = true
